@@ -37,7 +37,7 @@ public class TransaccionService {
 
   public void transferencia(String origen, String destino, BigDecimal valor)
       throws TransferenciaException {
-    // Transaccion transaccion = n
+
     Optional<Cuenta> cuentaOrPOT = this.cuentaRepository.findByCodigoInterno(origen);
     if (!cuentaOrPOT.isPresent()) {
       throw new TransferenciaException("La cuenta de origen no existe");
@@ -50,32 +50,27 @@ public class TransaccionService {
     Cuenta cuentaDestino = cuentaDesOPT.get();
     Optional<Cliente> clienteDestino =
         this.clienteRepository.findByCedula(cuentaDestino.getIdCliente());
-    List<Narcotraficante> listado = buscar(clienteDestino.get().getNombreCompleto());
-
-    if (listado.isEmpty()) {
-      if (cuentaOrigen.getSaldo().compareTo(valor) == -1) {
-        throw new TransferenciaException("Saldo insuficiente");
-      }
-      Transaccion transaccion =
-          Transaccion.builder()
-              .codigoInterno(UUID.randomUUID().toString())
-              .cuentaDestino(cuentaOrigen.getCodigoInterno())
-              .cuentaOrigen(cuentaDestino.getCodigoInterno())
-              .fecha(new Date())
-              .estado(EstadoEnum.EJECUTADO.getValue())
-              .valor(valor)
-              .build();
-    } else {
-      Transaccion transaccion =
-          Transaccion.builder()
-              .codigoInterno(UUID.randomUUID().toString())
-              .cuentaDestino(cuentaDestino.getCodigoInterno())
-              .cuentaOrigen(cuentaOrigen.getCodigoInterno())
-              .fecha(new Date())
-              .estado(EstadoEnum.BLOQUEADO.getValue())
-              .valor(valor)
-              .build();
+    String estado = EstadoEnum.EJECUTADO.getValue();
+    if (valor.compareTo(new BigDecimal(1000)) == 1) {
+      List<Narcotraficante> listado = buscar(clienteDestino.get().getNombreCompleto());
+      estado =
+          listado.isEmpty() ? EstadoEnum.EJECUTADO.getValue() : EstadoEnum.BLOQUEADO.getValue();
     }
+    if (cuentaOrigen.getSaldo().compareTo(valor) == -1) {
+      throw new TransferenciaException("Saldo insuficiente");
+    }
+    Transaccion transaccion =
+        Transaccion.builder()
+            .codigoInterno(UUID.randomUUID().toString())
+            .cuentaDestino(cuentaOrigen.getCodigoInterno())
+            .cuentaOrigen(cuentaDestino.getCodigoInterno())
+            .fecha(new Date())
+            .estado(estado)
+            .valor(valor)
+            .build();
+
+    cuentaOrigen.setSaldo(cuentaOrigen.getSaldo().subtract(valor));
+    this.cuentaRepository.save(cuentaOrigen);
   }
 
   private List<Narcotraficante> buscar(String nombre) {
